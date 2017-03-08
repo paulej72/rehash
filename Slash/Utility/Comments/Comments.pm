@@ -1333,7 +1333,8 @@ sub displayThread {
 
 				$return .= "<input id=\"commentBelow_$comment->{cid}\" type=\"checkbox\" class=\"commentBelow\" checked=\"checked\" autocomplete=\"off\" />\n".
 				"<label class=\"commentBelow\" title=\"Load comment\" for=\"commentBelow_$comment->{cid}\"> </label>\n".
-				"<div id=\"comment_below_$comment->{cid}\" class=\"commentbt commentDiv\"><div class=\"commentTop\"><div class=\"title\"><h4>Comment Below Threshold $kids</h4>
+				"<div id=\"comment_below_$comment->{cid}\" class=\"commentbt commentDiv\"><div class=\"commentTop\"><div class=\"title\">".
+				"<h4><label class=\"commentBelow\" for=\"commentBelow_$comment->{cid}\">Comment Below Threshold $kids</label></h4>
 				</div></div></div>\n";
 			}
 			$return .= $thiscomment->{data} . $const->{tableend};
@@ -1342,8 +1343,9 @@ sub displayThread {
 		elsif($user->{mode} eq 'flat' && defined($comment->{points}) && $comment->{points} < $user->{threshold} && $comment->{uid} != $user->{uid}) {
 			my $thiscomment = dispComment($comment, { noshow => $noshow, pieces => $pieces});
 			$return .= "<input id=\"commentBelow_$comment->{cid}\" type=\"checkbox\" class=\"commentBelow\" checked=\"checked\" autocomplete=\"off\" />\n".
-                                "<label class=\"commentBelow\" title=\"Load comment\" for=\"commentBelow_$comment->{cid}\"> </label>\n".
-				"<div id=\"comment_below_$comment->{cid}\" class=\"commentbt commentDiv\"><div class=\"commentTop\"><div class=\"title\"><h4>Comment Below Threshold</h4>
+				"<label class=\"commentBelow\" title=\"Load comment\" for=\"commentBelow_$comment->{cid}\"> </label>\n".
+				"<div id=\"comment_below_$comment->{cid}\" class=\"commentbt commentDiv\"><div class=\"commentTop\"><div class=\"title\">".
+				"<label class=\"commentBelow\" for=\"commentBelow_$comment->{cid}\">Comment Below Threshold</label></h4>
 				</div></div></div>\n";
 			$return .= $thiscomment->{data};
 		}
@@ -2440,14 +2442,17 @@ sub dispCommentNoTemplate {
 	
 	my $prenick = !$args->{is_anon} ? "<a href=\"$constants->{real_rootdir}/~".strip_paramattr($args->{nickname})."/\">" : "";
 	my $postnick = !$args->{is_anon} ? " ($args->{uid})</a>" : "";
-	my $noZoo = " by $prenick".strip_literal($args->{nickname})."$postnick \n";
+	my $noZooPN = !$args->{is_anon} ? "</a>" : "";
+	my $noZoo = " by $prenick".strip_literal($args->{nickname})."$noZooPN\n";
 	$postnick .= (!$args->{is_anon} && $args->{subscriber_badge}) ? " <span class=\"zooicon\"><a href=\"$gSkin->{rootdir}/subscribe.pl\"><img src=\"$constants->{imagedir}/star.png\" alt=\"Subscriber Badge\" title=\"Subscriber Badge\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span>" : "";
 	$postnick .= !$args->{is_anon} ? zooIcons({ person => $args->{uid}, bonus => 1}) : "";
 	my $nick .= "by $prenick".strip_literal($args->{nickname})."$postnick \n";
 	
 	$html_out .= "<div id=\"comment_$args->{cid}\" class=\"commentDiv score$points $no_collapse $dimmed\">\n".
-	"<div id=\"comment_top_$args->{cid}\" class=\"commentTop\">\n<div class=\"title\">\n<h4 id=\"$args->{cid}\">".strip_title($args->{subject})."\n";
-
+	"<div id=\"comment_top_$args->{cid}\" class=\"commentTop\">\n<div class=\"title\">\n<h4 id=\"$args->{cid}\"><label class=\"commentHider\" for=\"commentHider_$args->{cid}\">".strip_title($args->{subject})."</label>\n";
+	if($user->{mode} ne 'flat' && ($args->{children} || $legacykids)) {
+		$html_out .= "<label class=\"commentTreeHider\" for=\"commentTreeHider_$args->{cid}\">".strip_title($args->{subject})."</label>\n";
+	}
 	unless(defined($user->{noscores}) && $user->{noscores}) {
 		my $modal_begin = (defined($constants->{modal_prefs_active}) && $constants->{modal_prefs_active}) ? "<a href=\"#\" onclick=\"getModalPrefs('modcommentlog', 'Moderation Comment Log', $args->{cid}); return false\">" : "";
 		my $modal_end = (defined($constants->{modal_prefs_active}) && $constants->{modal_prefs_active}) ? "</a>" : "";
@@ -2457,10 +2462,10 @@ sub dispCommentNoTemplate {
 
 	$html_out .= "<span class=\"by\">$noZoo</span>";
 
-	if($no_collapse ne "noCollapse" && $args->{cid} > $args->{cid_now} && !$user->{is_anon} && $user->{highnew}) {
-		$html_out .= " *NEW*";
+	if($args->{cid} > $args->{cid_now} && !$user->{is_anon} && $user->{highnew}) {
+		$html_out .= " <div class=\"newBadge\">*New*</div>";
 	}
-
+	
 	if($args->{marked_spam} && $user->{seclev} >= 500) {
 		$html_out .= " <div class=\"spam\"> <a href=\"$constants->{real_rootdir}/comments.pl?op=unspam&sid=$args->{sid}&cid=$args->{cid}&noban=1\">[Unspam-Only]</a> or <a href=\"$constants->{real_rootdir}/comments.pl?op=unspam&sid=$args->{sid}&cid=$args->{cid}\">[Unspam-AND-Ban]</a></div>\n";
 	}
