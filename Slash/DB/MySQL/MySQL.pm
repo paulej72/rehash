@@ -6599,9 +6599,10 @@ sub getCommentTextCached {
 			my $this_len = $this_max_len;
 			if ($abbreviate) {
 				my $str = $abbrev_text;
-				# based on revertQuote() ... we replace the unused
-				# content with <<LEN>> and then we know how much we
-				# removed, and discard $str when done
+				# based on revertQuote() which no longer exists
+				# ... we replace the unused content with <<LEN>>
+				# and then we know how much we removed, and
+				# discard $str when done
 				my $bail = 0;
 				while ($str =~ m|((<p>)?<div class="quote">)(.+)$|sig) {
 					my($found, $p, $rest) = ($1, $2, $3);
@@ -6845,6 +6846,32 @@ sub saveCommentReadLog {
 }
 
 #######################################################
+# Clears the read status of one discussion for one user
+sub clearCommentReadLog {
+	my($self, $discussion_id, $uid, $no_mcd) = @_;
+
+	$uid ||= getCurrentUser('uid');
+	return 1 if isAnon($uid);
+
+	my($mcd, $mcdkey);
+	if(!$no_mcd) {
+		$mcd = $self->getMCD;
+		$mcdkey = "$self->{_mcd_keyprefix}:cmr:$uid:$discussion_id";
+	}
+
+	if ($mcd) {
+		$mcd->delete("$mcdkey:now");
+		$mcd->delete("$mcdkey:new");
+	}
+	
+	my $where = "discussion_id = $discussion_id AND uid = $uid";
+	if (!$self->sqlDelete("users_comments_read_log", $where)) {
+		return 0;
+	}
+	return 1;
+}
+
+#######################################################
 sub getCommentReadLog {
 	my($self, $discussion_id, $uid, $no_mcd) = @_;
 	my $cids = {};
@@ -6957,9 +6984,11 @@ sub getSubmissionsByUID {
 
 ########################################################
 sub countSubmissionsByUID {
-	my($self, $id) = @_;
-
-	my $count = $self->sqlCount('submissions', "uid='$id'");
+	my($self, $id, $options) = @_;
+	
+	my $where = "uid=$id";
+	$where .= " AND del = 2" if $options->{accepted_only};
+	my $count = $self->sqlCount('submissions', $where);
 	return $count;
 }
 
@@ -6989,14 +7018,21 @@ sub countSubmissionsByNetID {
 # Needs to be more generic in the long run.
 # Be nice if we could just pull certain elements -Brian
 sub getStoriesBySubmitter {
-	my($self, $id, $limit) = @_;
-
+	my($self, $id, $limit, $offset) = @_;
+	
 	my $id_q = $self->sqlQuote($id);
 	my $mp_tid = getCurrentStatic('mainpage_nexus_tid');
 	my @nexuses = $self->getNexusTids();
 	my $nexus_clause = join ',', @nexuses, $mp_tid;
 
-	$limit = 'LIMIT ' . $limit if $limit;
+	if ($limit) {
+		$limit = 'LIMIT ' . $limit;
+		$offset = $offset || 0;
+		$offset = 'OFFSET ' . $offset;
+	} else {
+		$offset = "";
+	}
+	
 	my $answer = $self->sqlSelectAllHashrefArray(
 		'sid, title, time',
 		'stories, story_text, story_topics_rendered',
@@ -7005,7 +7041,7 @@ sub getStoriesBySubmitter {
 		 AND submitter=$id_q AND time < NOW()
 		 AND story_topics_rendered.tid IN ($nexus_clause)
 		 AND in_trash = 'no'",
-		"GROUP BY stories.stoid ORDER by time DESC $limit");
+		"GROUP BY stories.stoid ORDER by time DESC $limit $offset");
 	return $answer;
 }
 
@@ -7020,11 +7056,10 @@ sub countStoriesBySubmitter {
 
 	my($count) = $self->sqlSelect('count(*)',
 		'stories, story_topics_rendered',
-		"stories.stoid=story_topics_rendered.stoid',
+		"stories.stoid = story_topics_rendered.stoid
 		 AND submitter=$id_q AND time < NOW()
 		 AND story_topics_rendered.tid IN ($nexus_clause)
-		 AND in_trash = 'no'
-		 GROUP BY stories.stoid");
+		 AND in_trash = 'no'");
 
 	return $count;
 }
@@ -9248,7 +9283,7 @@ sub getDiscussionParent {
 		my $journal_reader = getObject('Slash::Journal', { db_type => 'reader' });
 		my $article = $journal_reader->get($jid);
 		$parent->{content} = $journal_reader->fixJournalText($article->{article}, $article->{posttype}, $article->{uid});
-		$parent->{author} = $slashdb->getAuthor(
+		$parent->{author} = $slashdb->getUser(
 			$article->{uid},
 			[qw( nickname fakeemail homepage )]
 		);
@@ -13569,14 +13604,14 @@ sub upgradeCoreDB() {
 			cid_now int(10) unsigned NOT NULL,
 			cid_new int(10) unsigned NOT NULL,
 			ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		§	PRIMARY KEY (discussion_id, uid)
+			PRIMARY KEY (discussion_id, uid)
 			) ENGINE=ndbcluster DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
 		")) {
 			return 0;
 		}
 		if (!$self->sqlDo("ALTER TABLE users_comments ADD highnew tinyint(4) NOT NULL default 1")) {
-                        return 0;
-                }
+			return 0;
+		}
 		if (!$self->sqlDo("ALTER TABLE users_comments ADD dimread tinyint(4) NOT NULL default 1")) {
 			return 0;
 		}
@@ -13662,9 +13697,30 @@ sub upgradeCoreDB() {
 		$core_ver = 2;
 		$upgrades_done++;
 	}
+	
+	
+	if ($core_ver < 3 ) {
+		print "Upgrading Core to v3 ...\n";
+		print "Running: UPDATE vars SET value = 'rehash_17_05' WHERE name = 'cvs_tag_currentcode' \n";
+		if (!$self->sqlDo("UPDATE vars SET value = 'rehash_17_05' WHERE name = 'cvs_tag_currentcode'")) {
+			return 0;
+		}
+		print "Running: UPDATE vars SET value = 'b|i|p|br|a|ol|ul|li|dl|dt|dd|em|strong|tt|blockquote|div|ecode|quote|sup|sub|abbr|sarc|sarcasm|user|spoiler|del|s|strike' WHERE name = 'approvedtags' OR name = 'approvedtags_visible' \n";
+		if (!$self->sqlDo("UPDATE vars SET value = 'b|i|p|br|a|ol|ul|li|dl|dt|dd|em|strong|tt|blockquote|div|ecode|quote|sup|sub|abbr|sarc|sarcasm|user|spoiler|del|s|strike' WHERE name = 'approvedtags' OR name = 'approvedtags_visible'")) {
+			return 0;
+		}
+		print "Set to version 3 \n";
+		if (!$self->sqlDo("UPDATE site_info SET value = 3 WHERE name = 'db_schema_core'")) {
+			return 0;
+		}
+		print "Upgrade complete \n";
+		$core_ver = 3;
+		$upgrades_done++;
+	}
+			
 
 	if (!$upgrades_done) {
-		print "No schema upgrades needed for Core\n";
+		print "No upgrades needed for Core V$core_ver \n";
 	}
 	return 1;
 }
