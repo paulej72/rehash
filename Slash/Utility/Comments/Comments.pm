@@ -1327,7 +1327,7 @@ sub displayThread {
 			if (my $str = $thread->{data}) {
 				$below .= $const->{cagebegin} if $cagedkids;
 				if ($indent && $const->{indentbegin}) {
-					(my $indentbegin = $const->{indentbegin}) =~ s/^(<[^<>]+)>$/$1 id="commtree_$cid">/;
+					(my $indentbegin = $const->{indentbegin}) =~ s/^(<[^<>]+)>$/$1 id="commtree_$cid" class="commtree">/;
 					$below .= $indentbegin;
 				}
 				$below .= $str;
@@ -2132,14 +2132,20 @@ sub validateComment {
 				* ($check_prefix_len - $kickin)
 				/ ($max_comment_len - $kickin); # /
 
-		my $check_notags = strip_nohtml($check_prefix);
+		##########
+		#	TMB Added decode_entities to prevent that specific kind of cheating.
+		my $check_notags = decode_entities(strip_nohtml($check_prefix));
 		# Don't count & or other chars used in entity tags;  don't count
 		# chars commonly used in ascii art.  Not that it matters much.
 		# Do count chars commonly used in source code.
 		##########
 		#	TMB Count anything but whitespace as this is NOT unicode happy.
 		#	my $num_chars = $check_notags =~ tr/A-Za-z0-9?!(){}[]+='"@$-//;
-		my $num_chars = $check_notags =~ tr/ \t\r\n\f//c;
+		##########
+		#	TMB Testing a unicode-friendly version
+		#	Counts characters that aren't horizontal or vertical spaces, unicode control characters, or unicode formatting characters.
+		#	my $num_chars = $check_notags =~ tr/ \t\r\n\f//c;
+		my $num_chars = $check_notags =~ s/[^\h\v\p{Cc}\p{Cf}]//g;
 
 		# Note that approveTags() has already been called by this point,
 		# so all tags present are legal and uppercased.
@@ -2342,7 +2348,7 @@ sub printCommComments {
 	$html_out .= $args->{lcp}."<div id=\"discussion_buttons\">\n";
 	
 	if(!$user->{state}->{discussion_archived} && !$user->{state}->{discussion_future_nopost}) {
-		$html_out .= "<span class=\"nbutton\"><p><b>".
+		$html_out .= "<span class=\"nbutton\"><b>".
 		linkComment({
 			sid => $args->{sid},
 			cid => $args->{cid},
@@ -2350,14 +2356,14 @@ sub printCommComments {
 			subject => 'Reply',
 			subject_only => 1
 		}).
-		"</b></p></span>\n";
+		"</b></span>\n";
 	}
 
 	if(!$user->{is_anon}) {
-		$html_out .= "<span class=\"nbutton\"><p><b><a href=\"$gSkin->{rootdir}/my/comments\">Prefs</a></b></p></span>\n";
+		$html_out .= "<span class=\"nbutton\"><b><a href=\"$gSkin->{rootdir}/my/comments\">Prefs</a></b></span>\n";
 	}
 
-	$html_out .= "<span class=\"nbutton\"><p><b><a href=\"$gSkin->{rootdir}/faq.pl?op=moderation\">Moderator Help</a></b></p></span>\n";
+	$html_out .= "<span class=\"nbutton\"><b><a href=\"$gSkin->{rootdir}/faq.pl?op=moderation\">Moderator Help</a></b></span>\n";
 
 	if($moderate_form) {
 		$html_out .= "<input type=\"hidden\" name=\"op\" value=\"moderate\">\n";
@@ -2366,7 +2372,7 @@ sub printCommComments {
 		$html_out .= "<input type=\"hidden\" name=\"pid\" value=\"$args->{pid}\">\n" if $args->{pid};
 		$html_out .= "<button type=\"submit\" name=\"moderate\" value=\"discussion_buttons\">Moderate</button>\n";
 		if($can_del) {
-			$html_out .= "<span class=\"nbutton\"><p><b><a href=\"#\" onclick=\"\$('#commentform').submit(); return false\">Delete</a></b></p></span>\nChecked comments will be deleted!";
+			$html_out .= "<span class=\"nbutton\"><b><a href=\"#\" onclick=\"\$('#commentform').submit(); return false\">Delete</a></b></span>\nChecked comments will be deleted!";
 		}
 
 	}
@@ -2495,7 +2501,7 @@ sub dispCommentNoTemplate {
 	}
 
 	if($args->{marked_spam} && $user->{seclev} >= 500) {
-		$html_out .= " <div class=\"spam\"> <a href=\"$constants->{real_rootdir}/comments.pl?op=unspam&sid=$args->{sid}&cid=$args->{cid}&noban=1\">[Unspam-Only]</a> or <a href=\"$constants->{real_rootdir}/comments.pl?op=unspam&sid=$args->{sid}&cid=$args->{cid}\">[Unspam-AND-Ban]</a></div>\n";
+		$html_out .= " <div class=\"spam\"> <a href=\"$constants->{real_rootdir}/comments.pl?op=unspam&amp;sid=$args->{sid}&amp;cid=$args->{cid}&amp;noban=1\">[Unspam-Only]</a> or <a href=\"$constants->{real_rootdir}/comments.pl?op=unspam&amp;sid=$args->{sid}&amp;cid=$args->{cid}\">[Unspam-AND-Ban]</a></div>\n";
 	}
 
 	my $details = dispCommentDetails({
@@ -2575,7 +2581,7 @@ sub zooIcons {
 			!$user->{people}->{FAN()}->{$args->{person}} && !$user->{people}->{FREAK()}->{$args->{person}} &&
 			!$user->{people}->{FOF()}->{$args->{person}} && !$user->{people}->{EOF()}->{$args->{person}} ) {
 
-			$html_out .= "<span class=\"zooicon neutral\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}&type=friend\"><img src=\"$constants->{imagedir}/neutral.$constants->{badge_icon_ext}\" alt=\"Neutral\" title=\"Neutral\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span>";
+			$html_out .= "<span class=\"zooicon neutral\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}&amp;type=friend\"><img src=\"$constants->{imagedir}/neutral.$constants->{badge_icon_ext}\" alt=\"Neutral\" title=\"Neutral\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span>";
 		}
 		else {
 			# Friend
@@ -2586,7 +2592,7 @@ sub zooIcons {
 				else {
 					$zootitle = "Friend";
 				}
-				$html_out .= "<span class=\"zooicon friend\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}\"><img src=\"$constants->{imagedir}/friend.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
+				$html_out .= "<span class=\"zooicon friend\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}\"><img src=\"$constants->{imagedir}/friend.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
 			}
 			# Foe
 			if($user->{people}->{FOE()}->{$args->{person}} && $implied != FOE() ) {
@@ -2596,7 +2602,7 @@ sub zooIcons {
 				else {
 					$zootitle = "Foe";
 				}
-				$html_out .= "<span class=\"zooicon foe\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}\"><img src=\"$constants->{imagedir}/foe.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
+				$html_out .= "<span class=\"zooicon foe\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}\"><img src=\"$constants->{imagedir}/foe.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
 			}
 			# Fan
 			if($user->{people}->{FAN()}->{$args->{person}} && $implied != FAN() ) {
@@ -2606,7 +2612,7 @@ sub zooIcons {
 				else {
 					$zootitle = "Fan";
 				}
-				$html_out .= "<span class=\"zooicon fan\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}\"><img src=\"$constants->{imagedir}/fan.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
+				$html_out .= "<span class=\"zooicon fan\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}\"><img src=\"$constants->{imagedir}/fan.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
 			}
 			# Freak
 			if($user->{people}->{FREAK()}->{$args->{person}} && $implied != FREAK() ) {
@@ -2616,7 +2622,7 @@ sub zooIcons {
 				else {
 					$zootitle = "Freak";
 				}
-				$html_out .= "<span class=\"zooicon freak\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}\"><img src=\"$constants->{imagedir}/freak.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
+				$html_out .= "<span class=\"zooicon freak\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}\"><img src=\"$constants->{imagedir}/freak.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
 			}
 			# Friend of Friend
 			if($user->{people}->{FOF()}->{$args->{person}} && $implied != FOF() ) {
@@ -2626,17 +2632,17 @@ sub zooIcons {
 				else {
 					$zootitle = "Friend of Friend";
 				}
-				$html_out .= "<span class=\"zooicon fof\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}\"><img src=\"$constants->{imagedir}/fof.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
+				$html_out .= "<span class=\"zooicon fof\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}\"><img src=\"$constants->{imagedir}/fof.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
 			}
-			# Enemy of Friend
+			# Foe of Friend
 			if($user->{people}->{EOF()}->{$args->{person}} && $implied != EOF() ) {
 				if($bonus && $user->{people_bonus_eof}) {
-					$zootitle = "Enemy of Friend ($user->{people_bonus_eof})";
+					$zootitle = "Foe of Friend ($user->{people_bonus_eof})";
 				}
 				else {
-					$zootitle = "Enemy of Friend";
+					$zootitle = "Foe of Friend";
 				}
-				$html_out .= "<span class=\"zooicon eof\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&uid=$args->{person}\"><img src=\"$constants->{imagedir}/eof.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
+				$html_out .= "<span class=\"zooicon eof\"><a href=\"$gSkin->{rootdir}/zoo.pl?op=check&amp;uid=$args->{person}\"><img src=\"$constants->{imagedir}/eof.$constants->{badge_icon_ext}\" alt=\"$zootitle\" title=\"$zootitle\" width=\"$constants->{badge_icon_size}\" height=\"$constants->{badge_icon_size}\"></a></span> ";
 			}
 		}
 	}
@@ -2699,7 +2705,7 @@ sub dispLinkComment {
 	}
 	if(!$args->{options}->{pieces}) {
 		if(!$user->{state}->{discussion_archived} && !$user->{state}->{discussion_future_nopost}) {
-			$html_out .= "<span id=\"reply_link_$args->{cid}\" class=\"nbutton\"><p><b>".
+			$html_out .= "<span id=\"reply_link_$args->{cid}\" class=\"nbutton\"><b>".
 				linkComment({
 					sid => $args->{sid},
 					pid => $args->{pid},
@@ -2707,17 +2713,17 @@ sub dispLinkComment {
 					op => 'Reply',
 					subject => 'Reply to This',
 					subject_only => 1,
-				})."</b></p></span> \n";
+				})."</b></span> \n";
 		}
 		if($do_parent) {
-			$html_out .= "<span class=\"nbutton\"><p><b>".
+			$html_out .= "<span class=\"nbutton\"><b>".
 				linkComment({
 					sid => $args->{sid},
 					cid => $do_parent,
 					pid => $do_parent,
 					subject => 'Parent',
 					subject_only => 1,
-				}, 1)."</b></p></span> \n";
+				}, 1)."</b></span> \n";
 		}
 		if($args->{can_mod}) {
 			$html_out .= "<div id=\"reasondiv_$args->{cid}\" class=\"modsel\">\n"

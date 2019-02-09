@@ -107,7 +107,7 @@ sub edit {
 			$user_edit = $slashdb->getUser($slashdb->getUserUID($id));
 		}
 	} else {
-		$user_edit = $user;
+		$user_edit = $slashdb->getUser($user->{uid});
 	}
 	
 	my $admin_block = 	slashDisplay('getUserAdmin', {
@@ -331,7 +331,7 @@ sub stripe {
 	}
 
 	my $tx = {
-		amount			=> int(sprintf("%.2d", $form->{amount}) * 100),
+		amount			=> int($form->{amount} * 100),
 		description		=> $constants->{sitename}." subscription payment",
 		currency		=> defined $constants->{stripe_currency} ? $constants->{stripe_currency} : "USD",
 		'metadata[uid]'		=> $cryptValues->{uid},
@@ -516,9 +516,14 @@ sub confirm {
 	# Previously we were allowing infinite or zero decimal places.
 	$amount = sprintf("%.2f", $amount);
 
-	my $uid = $form->{uid} || $user->{uid};
-	my $sub_user = $slashdb->getUser($uid);
+	# puid = paying user, uid = user getting the sub
 	my $puid = $user->{uid};
+	my $uid = $form->{uid} || $user->{uid};
+	if($type eq "user")
+	{
+		$uid = $puid;
+	}
+	my $sub_user = $slashdb->getUser($uid);
 	
 	if ($uid == $constants->{anonymous_coward_uid}) {
 		my $note = "<p class='error'>" . $constants->{anon_name_alt} . " cannot recieve a subscription.  Please choose another user to gift.</p>";
